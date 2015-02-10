@@ -53,7 +53,7 @@ later, first let's just create a bucket.  That can be accomplished like this::
         raise S3CreateError(response.status, response.reason)
     boto.exception.S3CreateError: S3Error[409]: Conflict
 
-Whoa.  What happended there?  Well, the thing you have to know about
+Whoa.  What happened there?  Well, the thing you have to know about
 buckets is that they are kind of like domain names.  It's one flat name
 space that everyone who uses S3 shares.  So, someone has already create
 a bucket called "mybucket" in S3 and that means no one else can grab that
@@ -143,7 +143,7 @@ guessing.  The other thing to note is that boto does stream the content
 to and from S3 so you should be able to send and receive large files without
 any problem.
 
-When fetching a key that has already exists, you have two options. If you're
+When fetching a key that already exists, you have two options. If you're
 uncertain whether a key exists (or if you need the metadata set on it, you can
 call ``Bucket.get_key(key_name_here)``. However, if you're sure a key already
 exists within a bucket, you can skip the check for a key on the server.

@@ -1,18 +1,12 @@
 #!/usr/bin/env python
 import unittest
-import httplib
 from datetime import datetime
-try:
-    import json
-except ImportError:
-    import simplejson as json
-
 from mock import Mock
 
 from tests.unit import AWSMockServiceTestCase
 from boto.cloudformation.connection import CloudFormationConnection
 from boto.exception import BotoServerError
-
+from boto.compat import json
 
 SAMPLE_TEMPLATE = r"""
 {
@@ -55,7 +49,7 @@ class TestCloudFormationCreateStack(CloudFormationConnectionBase):
         return json.dumps(
             {u'CreateStackResponse':
                  {u'CreateStackResult': {u'StackId': self.stack_id},
-                  u'ResponseMetadata': {u'RequestId': u'1'}}})
+                  u'ResponseMetadata': {u'RequestId': u'1'}}}).encode('utf-8')
 
     def test_create_stack_has_correct_request_params(self):
         self.set_http_response(status_code=200)
@@ -109,7 +103,7 @@ class TestCloudFormationCreateStack(CloudFormationConnectionBase):
 
     def test_create_stack_fails(self):
         self.set_http_response(status_code=400, reason='Bad Request',
-            body='{"Error": {"Code": 1, "Message": "Invalid arg."}}')
+            body=b'{"Error": {"Code": 1, "Message": "Invalid arg."}}')
         with self.assertRaisesRegexp(self.service_connection.ResponseError,
             'Invalid arg.'):
             api_response = self.service_connection.create_stack(
@@ -118,12 +112,12 @@ class TestCloudFormationCreateStack(CloudFormationConnectionBase):
 
     def test_create_stack_fail_error(self):
         self.set_http_response(status_code=400, reason='Bad Request',
-            body='{"RequestId": "abc", "Error": {"Code": 1, "Message": "Invalid arg."}}')
+            body=b'{"RequestId": "abc", "Error": {"Code": 1, "Message": "Invalid arg."}}')
         try:
             api_response = self.service_connection.create_stack(
                 'stack_name', template_body=SAMPLE_TEMPLATE,
                 parameters=[('KeyName', 'myKeyName')])
-        except BotoServerError, e:
+        except BotoServerError as e:
             self.assertEqual('abc', e.request_id)
             self.assertEqual(1, e.error_code)
             self.assertEqual('Invalid arg.', e.message)
@@ -133,7 +127,7 @@ class TestCloudFormationUpdateStack(CloudFormationConnectionBase):
         return json.dumps(
             {u'UpdateStackResponse':
                  {u'UpdateStackResult': {u'StackId': self.stack_id},
-                  u'ResponseMetadata': {u'RequestId': u'1'}}})
+                  u'ResponseMetadata': {u'RequestId': u'1'}}}).encode('utf-8')
 
     def test_update_stack_all_args(self):
         self.set_http_response(status_code=200)
@@ -144,7 +138,8 @@ class TestCloudFormationUpdateStack(CloudFormationConnectionBase):
             tags={'TagKey': 'TagValue'},
             notification_arns=['arn:notify1', 'arn:notify2'],
             disable_rollback=True,
-            timeout_in_minutes=20
+            timeout_in_minutes=20,
+            use_previous_template=True
         )
         self.assert_request_parameters({
             'Action': 'UpdateStack',
@@ -161,6 +156,7 @@ class TestCloudFormationUpdateStack(CloudFormationConnectionBase):
             'TimeoutInMinutes': 20,
             'TemplateBody': SAMPLE_TEMPLATE,
             'TemplateURL': 'http://url',
+            'UsePreviousTemplate': 'true',
         })
 
     def test_update_stack_with_minimum_args(self):
@@ -177,7 +173,7 @@ class TestCloudFormationUpdateStack(CloudFormationConnectionBase):
 
     def test_update_stack_fails(self):
         self.set_http_response(status_code=400, reason='Bad Request',
-                               body='Invalid arg.')
+                               body=b'Invalid arg.')
         with self.assertRaises(self.service_connection.ResponseError):
             api_response = self.service_connection.update_stack(
                 'stack_name', template_body=SAMPLE_TEMPLATE,
@@ -188,12 +184,12 @@ class TestCloudFormationDeleteStack(CloudFormationConnectionBase):
     def default_body(self):
         return json.dumps(
             {u'DeleteStackResponse':
-                 {u'ResponseMetadata': {u'RequestId': u'1'}}})
+                 {u'ResponseMetadata': {u'RequestId': u'1'}}}).encode('utf-8')
 
     def test_delete_stack(self):
         self.set_http_response(status_code=200)
         api_response = self.service_connection.delete_stack('stack_name')
-        self.assertEqual(api_response, json.loads(self.default_body()))
+        self.assertEqual(api_response, json.loads(self.default_body().decode('utf-8')))
         self.assert_request_parameters({
             'Action': 'DeleteStack',
             'ContentType': 'JSON',
@@ -209,7 +205,7 @@ class TestCloudFormationDeleteStack(CloudFormationConnectionBase):
 
 class TestCloudFormationDescribeStackResource(CloudFormationConnectionBase):
     def default_body(self):
-        return json.dumps('fake server response')
+        return json.dumps('fake server response').encode('utf-8')
 
     def test_describe_stack_resource(self):
         self.set_http_response(status_code=200)
@@ -233,7 +229,7 @@ class TestCloudFormationDescribeStackResource(CloudFormationConnectionBase):
 
 class TestCloudFormationGetTemplate(CloudFormationConnectionBase):
     def default_body(self):
-        return json.dumps('fake server response')
+        return json.dumps('fake server response').encode('utf-8')
 
     def test_get_template(self):
         self.set_http_response(status_code=200)
@@ -255,7 +251,7 @@ class TestCloudFormationGetTemplate(CloudFormationConnectionBase):
 
 class TestCloudFormationGetStackevents(CloudFormationConnectionBase):
     def default_body(self):
-        return """
+        return b"""
             <DescribeStackEventsResult>
               <StackEvents>
                 <member>
@@ -318,7 +314,7 @@ class TestCloudFormationGetStackevents(CloudFormationConnectionBase):
 
 class TestCloudFormationDescribeStackResources(CloudFormationConnectionBase):
     def default_body(self):
-        return """
+        return b"""
             <DescribeStackResourcesResult>
               <StackResources>
                 <member>
@@ -378,7 +374,7 @@ class TestCloudFormationDescribeStackResources(CloudFormationConnectionBase):
 
 class TestCloudFormationDescribeStacks(CloudFormationConnectionBase):
     def default_body(self):
-        return """
+        return b"""
           <DescribeStacksResponse>
             <DescribeStacksResult>
               <Stacks>
@@ -468,7 +464,7 @@ class TestCloudFormationDescribeStacks(CloudFormationConnectionBase):
 
 class TestCloudFormationListStackResources(CloudFormationConnectionBase):
     def default_body(self):
-        return """
+        return b"""
             <ListStackResourcesResponse>
               <ListStackResourcesResult>
                 <StackResourceSummaries>
@@ -525,7 +521,7 @@ class TestCloudFormationListStackResources(CloudFormationConnectionBase):
 
 class TestCloudFormationListStacks(CloudFormationConnectionBase):
     def default_body(self):
-        return """
+        return b"""
             <ListStacksResponse>
              <ListStacksResult>
               <StackSummaries>
@@ -565,7 +561,7 @@ class TestCloudFormationListStacks(CloudFormationConnectionBase):
 
 class TestCloudFormationValidateTemplate(CloudFormationConnectionBase):
     def default_body(self):
-        return """
+        return b"""
             <ValidateTemplateResponse xmlns="http://cloudformation.amazonaws.com/doc/2010-05-15/">
               <ValidateTemplateResult>
                 <Description>My Description.</Description>
@@ -625,7 +621,7 @@ class TestCloudFormationValidateTemplate(CloudFormationConnectionBase):
 
 class TestCloudFormationCancelUpdateStack(CloudFormationConnectionBase):
     def default_body(self):
-        return """<CancelUpdateStackResult/>"""
+        return b"""<CancelUpdateStackResult/>"""
 
     def test_cancel_update_stack(self):
         self.set_http_response(status_code=200)
@@ -640,7 +636,7 @@ class TestCloudFormationCancelUpdateStack(CloudFormationConnectionBase):
 
 class TestCloudFormationEstimateTemplateCost(CloudFormationConnectionBase):
     def default_body(self):
-        return """
+        return b"""
             {
                 "EstimateTemplateCostResponse": {
                     "EstimateTemplateCostResult": {
@@ -666,7 +662,7 @@ class TestCloudFormationEstimateTemplateCost(CloudFormationConnectionBase):
 
 class TestCloudFormationGetStackPolicy(CloudFormationConnectionBase):
     def default_body(self):
-        return """
+        return b"""
             {
                 "GetStackPolicyResponse": {
                     "GetStackPolicyResult": {
@@ -690,7 +686,7 @@ class TestCloudFormationGetStackPolicy(CloudFormationConnectionBase):
 
 class TestCloudFormationSetStackPolicy(CloudFormationConnectionBase):
     def default_body(self):
-        return """
+        return b"""
             {
                 "SetStackPolicyResponse": {
                     "SetStackPolicyResult": {
@@ -704,7 +700,7 @@ class TestCloudFormationSetStackPolicy(CloudFormationConnectionBase):
         self.set_http_response(status_code=200)
         api_response = self.service_connection.set_stack_policy('stack-id',
             stack_policy_body='{}')
-        self.assertEqual(api_response['Some'], 'content')
+        self.assertDictEqual(api_response, {'SetStackPolicyResult': {'Some': 'content'}})
         self.assert_request_parameters({
             'Action': 'SetStackPolicy',
             'ContentType': 'JSON',
